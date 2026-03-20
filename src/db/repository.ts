@@ -62,6 +62,36 @@ export class SessionRepository {
     return row ? rowToSession(row) : undefined;
   }
 
+  getActiveSession(): Session | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+      )
+      .get() as SessionRow | undefined;
+    return row ? rowToSession(row) : undefined;
+  }
+
+  deleteSession(sessionId: string): boolean {
+    const deleteEvents = this.db.prepare(
+      "DELETE FROM events WHERE session_id = ?",
+    );
+    const deleteSummaries = this.db.prepare(
+      "DELETE FROM summaries WHERE session_id = ?",
+    );
+    const deleteSession = this.db.prepare(
+      "DELETE FROM sessions WHERE id = ?",
+    );
+
+    const tx = this.db.transaction((id: string) => {
+      deleteEvents.run(id);
+      deleteSummaries.run(id);
+      const result = deleteSession.run(id);
+      return result.changes > 0;
+    });
+
+    return tx(sessionId);
+  }
+
   listSessions(options?: {
     projectName?: string;
     since?: string;

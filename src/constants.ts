@@ -4,7 +4,7 @@ import { join } from "node:path";
 export const BRAND = {
   name: "session-summary-mcp",
   displayName: "Session Summary",
-  version: "0.1.0",
+  version: "0.1.1",
 } as const;
 
 export const DEFAULTS = {

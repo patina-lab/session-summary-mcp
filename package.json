@@ -1,7 +1,16 @@
 {
   "name": "session-summary-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server that tracks AI coding session activities and generates human-readable summaries, standups, and reports",
+  "author": "patina-lab",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/patina-lab/session-summary-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/patina-lab/session-summary-mcp/issues"
+  },
+  "homepage": "https://github.com/patina-lab/session-summary-mcp#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,7 +18,8 @@
     "session-summary-mcp": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -24,10 +34,14 @@
     "mcp",
     "model-context-protocol",
     "session-summary",
-    "standup",
+    "daily-standup",
+    "standup-report",
+    "session-tracker",
     "ai-coding",
     "claude-code",
-    "developer-tools"
+    "productivity",
+    "developer-tools",
+    "progress-report"
   ],
   "license": "MIT",
   "engines": {

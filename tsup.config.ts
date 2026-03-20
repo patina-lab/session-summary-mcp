@@ -4,7 +4,7 @@ export default defineConfig({
   entry: ["src/index.ts"],
   format: ["esm"],
   dts: true,
-  sourcemap: true,
+  sourcemap: false,
   clean: true,
   banner: {
     js: "#!/usr/bin/env node",

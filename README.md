@@ -1,38 +1,36 @@
 # session-summary-mcp
 
-MCP server that tracks AI coding session activities and generates human-readable summaries, standups, and reports.
+[![npm version](https://img.shields.io/npm/v/session-summary-mcp.svg)](https://www.npmjs.com/package/session-summary-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**The problem**: After a long coding session with Claude Code (or any AI assistant), answering "what did I do today?" requires manually reviewing each session. There's no automated way to generate daily standups or progress reports from your AI-assisted work.
+**The only MCP server that auto-generates daily standups from your AI coding sessions.**
 
-**The solution**: An MCP server that runs alongside your AI coding sessions, tracking events in real-time and generating summaries on demand — from a single session recap to a full daily standup report.
+After a long session with Claude Code (or any AI assistant), answering "what did I do today?" means manually reviewing each conversation. This MCP server tracks your work in real-time and generates standup reports on demand.
 
-## Features
+## What it does
 
-- **Session Tracking** — Start/end sessions with goals, track events (decisions, milestones, errors, blockers)
-- **Claude Code Import** — Parse Claude Code's JSONL session logs to retroactively capture file changes, tool calls, and git commits
-- **Git Integration** — Import git commits as session events
-- **Smart Summarization** — Generate structured summaries with objectives, accomplishments, decisions, files changed, and next steps
-- **Standup Generation** — Auto-generate daily standup reports (yesterday/today/blockers)
-- **Full-Text Search** — Search across all session events using SQLite FTS5
-- **Export** — Output as Markdown or JSON, optionally write to file
+1. **Track** — Record decisions, milestones, errors, and blockers during your session
+2. **Import** — Pull in Claude Code session logs and git commits retroactively
+3. **Summarize** — Generate structured summaries (objectives, accomplishments, files changed, next steps)
+4. **Standup** — Auto-generate daily standup reports (yesterday / today / blockers)
+5. **Export** — Output as Markdown or JSON
+6. **Search** — Full-text search across all your past sessions
+
+All data stays local in a SQLite database. No external services, no API keys needed.
 
 ## Quick Start
 
-### Install
+### Prerequisites
 
-```bash
-npm install -g session-summary-mcp
-```
-
-Or run directly:
-
-```bash
-npx session-summary-mcp
-```
+- **Node.js 18+**
+- **Python 3** and a C++ compiler for `better-sqlite3` native module:
+  - macOS: `xcode-select --install`
+  - Ubuntu/Debian: `sudo apt install build-essential python3`
+  - Windows: `npm install --global windows-build-tools`
 
 ### Configure with Claude Code
 
-Add to your Claude Code MCP settings (`~/.claude/settings.json`):
+Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -45,22 +43,9 @@ Add to your Claude Code MCP settings (`~/.claude/settings.json`):
 }
 ```
 
-### Optional: Auto-track with Hooks
+That's it. Restart Claude Code and the tools are available.
 
-Add hooks to automatically start/end sessions:
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "type": "command",
-        "command": "echo 'Session started'"
-      }
-    ]
-  }
-}
-```
+> **Other MCP clients** (Cursor, Windsurf, Zed, etc.): Connect via stdio transport — run `npx session-summary-mcp` as the server command.
 
 ## MCP Tools
 
@@ -69,15 +54,16 @@ Add hooks to automatically start/end sessions:
 | Tool | Description |
 |------|-------------|
 | `start_session` | Begin tracking a new session with optional project name and goal |
-| `end_session` | End a session and auto-generate a summary |
-| `track_event` | Record an event (decision, milestone, error, blocker, note, etc.) |
+| `end_session` | End a session (or the most recent active one) and auto-generate a summary |
+| `track_event` | Record an event — decision, milestone, error, blocker, note, etc. |
+| `get_active_session` | Get the currently active (not ended) session |
 
 ### Data Import
 
 | Tool | Description |
 |------|-------------|
-| `import_claude_sessions` | Import session data from Claude Code's JSONL files (`~/.claude/projects/`) |
-| `import_git_commits` | Import git commits as events for a session |
+| `import_claude_sessions` | Import session data from Claude Code's JSONL files (`~/.claude/projects/`). Extracts file changes, tool calls, and git commits. |
+| `import_git_commits` | Import git commits from a repo as session events |
 
 ### Reporting
 
@@ -85,69 +71,68 @@ Add hooks to automatically start/end sessions:
 |------|-------------|
 | `summarize` | Generate a summary for a session or date range |
 | `generate_standup` | Create a daily standup report (yesterday/today/blockers) |
-| `export` | Export summary or standup as Markdown/JSON file |
+| `export_report` | Export summary or standup as Markdown/JSON, optionally write to file |
 
 ### Query
 
 | Tool | Description |
 |------|-------------|
 | `list_sessions` | List tracked sessions with filters (project, date range) |
-| `search_sessions` | Full-text search across all session events |
+| `search_sessions` | Full-text search across all session events (plain keywords work) |
+| `delete_session` | Delete a session and all its events |
 
 ## Usage Examples
 
-### Track a session manually
+### Track a session
 
 ```
-> Start a session for my project
-# Claude calls start_session(projectName: "my-app", goal: "Add user authentication")
+You: "Start tracking this session — I'm working on the auth module"
+  → start_session(projectName: "my-app", goal: "Implement auth module")
 
-> I decided to use JWT instead of session cookies
-# Claude calls track_event(category: "decision", title: "Use JWT for auth")
+You: "I decided to use JWT instead of session cookies"
+  → track_event(category: "decision", title: "Use JWT for auth", detail: "Stateless, scales better")
 
-> Authentication is working, let's wrap up
-# Claude calls end_session(sessionId: "...")
-# Returns: summary with accomplishments, decisions, files changed
+You: "Let's wrap up"
+  → end_session()
+  → Returns: summary with accomplishments, decisions, files changed
 ```
 
-### Import and analyze past sessions
+### Import past sessions and generate standup
 
 ```
-> Import my Claude Code sessions from the last week
-# Claude calls import_claude_sessions(since: "2026-03-12T00:00:00Z")
-# Returns: "15 sessions imported, 3 skipped"
+You: "Import my recent Claude Code sessions"
+  → import_claude_sessions(since: "2025-01-06T00:00:00Z")
+  → "15 sessions imported, 3 skipped"
 
-> Generate today's standup
-# Claude calls generate_standup()
-# Returns formatted yesterday/today/blockers report
+You: "Generate today's standup"
+  → generate_standup()
+  → Formatted yesterday/today/blockers report
 ```
 
 ### Export a report
 
 ```
-> Export today's summary as markdown to ~/reports/
-# Claude calls export(type: "summary", format: "markdown", outputPath: "~/reports/daily")
-# Writes ~/reports/daily.md
+You: "Export today's summary to ~/reports/"
+  → export_report(type: "summary", format: "markdown", outputPath: "~/reports/daily")
+  → Writes ~/reports/daily.md
 ```
 
 ## Configuration
 
-Environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SESSION_SUMMARY_DB_PATH` | `~/.session-summary-mcp/sessions.db` | SQLite database location |
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `SESSION_SUMMARY_DB_PATH` | `~/.session-summary-mcp/sessions.db` | SQLite database path |
 | `SESSION_SUMMARY_CLAUDE_DIR` | `~/.claude` | Claude Code data directory |
 
-## Data Storage
+### Data Management
 
-All data is stored locally in a SQLite database with:
-- **Sessions** — project, goal, start/end times
-- **Events** — categorized activities with timestamps
-- **Summaries** — generated reports
-- **FTS5 index** — full-text search across events
+Data is stored at `~/.session-summary-mcp/sessions.db`. To reset all data:
 
-No data is sent to external services. The optional LLM summarization (future feature) will use your own API key.
+```bash
+rm ~/.session-summary-mcp/sessions.db
+```
+
+The database is auto-created on next server start.
 
 ## Architecture
 
@@ -163,42 +148,34 @@ No data is sent to external services. The optional LLM summarization (future fea
 │      session-summary-mcp server      │
 │                                      │
 │  ┌───────────┐ ┌───────────┐         │
-│  │ Collector │ │ Summarizer│         │
-│  │ • JSONL   │ │ • Template│         │
-│  │ • Git log │ │ • Rollup  │         │
-│  └─────┬─────┘ └──────┬────┘         │
-│        │              │              │
-│  ┌─────▼──────────────▼─────┐        │
-│  │     SQLite (FTS5)        │        │
-│  └──────────────────────────┘        │
+│  │ Collector  │ │ Summarizer│         │
+│  │ • JSONL    │ │ • Template│         │
+│  │ • Git log  │ │ • Rollup  │         │
+│  └─────┬─────┘ └─────┬─────┘         │
+│        │              │               │
+│  ┌─────▼──────────────▼─────┐         │
+│  │     SQLite (FTS5)        │         │
+│  └──────────────────────────┘         │
 └──────────────────────────────────────┘
 ```
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build
 npm run build
-
-# Run tests
-npm test
-
-# Watch mode
-npm run dev
+npm test        # 27 tests
+npm run dev     # watch mode
 ```
 
 ## Roadmap
 
-- [ ] **v0.2**: Slack / Notion / Linear export targets
-- [ ] **v0.2**: Multi-agent session support (Gemini CLI, Cursor)
+- [ ] **v0.2**: Slack / Notion / Linear export
+- [ ] **v0.2**: Multi-agent support (Gemini CLI, Cursor)
 - [ ] **v0.3**: LLM-powered summarization (Claude Haiku)
 - [ ] **v0.3**: Weekly rollup reports
 - [ ] **v0.4**: Web dashboard
-- [ ] **v0.4**: Non-developer mode (file-change tracking without git)
 
 ## License
 
-MIT
+[MIT](LICENSE)

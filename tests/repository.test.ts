@@ -250,6 +250,70 @@ describe("SessionRepository", () => {
     });
   });
 
+  // ── Active Session ──
+
+  describe("active session", () => {
+    it("should return the most recent active session", () => {
+      repo.createSession({
+        id: "ended-session",
+        projectPath: "/test",
+        projectName: "test",
+        startedAt: "2026-03-18T08:00:00.000Z",
+        endedAt: "2026-03-18T09:00:00.000Z",
+      });
+      repo.createSession({
+        id: "active-session",
+        projectPath: "/test",
+        projectName: "test",
+        startedAt: "2026-03-18T10:00:00.000Z",
+      });
+
+      const active = repo.getActiveSession();
+      expect(active).toBeDefined();
+      expect(active!.id).toBe("active-session");
+    });
+
+    it("should return undefined when no active sessions", () => {
+      repo.createSession({
+        id: "ended",
+        projectPath: "/test",
+        projectName: "test",
+        startedAt: "2026-03-18T08:00:00.000Z",
+        endedAt: "2026-03-18T09:00:00.000Z",
+      });
+
+      expect(repo.getActiveSession()).toBeUndefined();
+    });
+  });
+
+  // ── Delete Session ──
+
+  describe("delete session", () => {
+    it("should delete session and all related data", () => {
+      repo.createSession({
+        id: "del-session",
+        projectPath: "/test",
+        projectName: "test",
+        startedAt: "2026-03-18T10:00:00.000Z",
+      });
+      repo.addEvent({
+        sessionId: "del-session",
+        category: "note",
+        title: "test event",
+        timestamp: "2026-03-18T10:30:00.000Z",
+      });
+
+      const deleted = repo.deleteSession("del-session");
+      expect(deleted).toBe(true);
+      expect(repo.getSession("del-session")).toBeUndefined();
+      expect(repo.getEvents("del-session")).toHaveLength(0);
+    });
+
+    it("should return false for non-existent session", () => {
+      expect(repo.deleteSession("nonexistent")).toBe(false);
+    });
+  });
+
   // ── Summaries ──
 
   describe("summaries", () => {

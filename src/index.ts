@@ -26,6 +26,19 @@ const server = new McpServer({
   version: BRAND.version,
 });
 
+// ── Helper: resolve sessionId (auto-fallback to active session) ──
+
+function resolveSessionId(sessionId?: string): string {
+  if (sessionId) return sessionId;
+  const active = repo.getActiveSession();
+  if (!active) {
+    throw new Error(
+      "No session ID provided and no active session found. Start a session first with start_session.",
+    );
+  }
+  return active.id;
+}
+
 // ── Tool: start_session ──
 
 server.tool(
@@ -56,13 +69,19 @@ server.tool(
 
 server.tool(
   "end_session",
-  "End the current tracking session. Automatically generates a summary of what was accomplished.",
+  "End a tracking session and auto-generate a summary. If no sessionId is provided, ends the most recent active session.",
   {
-    sessionId: z.string().describe("Session ID to end"),
+    sessionId: z
+      .string()
+      .optional()
+      .describe(
+        "Session ID to end. If omitted, ends the most recent active session.",
+      ),
   },
   async ({ sessionId }) => {
-    endSession(repo, sessionId);
-    const summary = summarize(repo, { sessionId });
+    const id = resolveSessionId(sessionId);
+    endSession(repo, id);
+    const summary = summarize(repo, { sessionId: id });
     repo.saveSummary(summary);
 
     const accomplishments = summary.accomplishments.join("\n- ");
@@ -70,7 +89,7 @@ server.tool(
       content: [
         {
           type: "text",
-          text: `Session ended: ${sessionId}\n\nAccomplishments:\n- ${accomplishments}\n\nFiles changed: ${summary.filesChanged.length}\nDecisions: ${summary.decisions.length}`,
+          text: `Session ended: ${id}\n\nAccomplishments:\n- ${accomplishments}\n\nFiles changed: ${summary.filesChanged.length}\nDecisions: ${summary.decisions.length}`,
         },
       ],
     };
@@ -81,9 +100,14 @@ server.tool(
 
 server.tool(
   "track_event",
-  "Record a notable event in the current session (decision, milestone, error, blocker, note, etc.)",
+  "Record a notable event in the current session (decision, milestone, error, blocker, note, etc.). If no sessionId is provided, uses the most recent active session.",
   {
-    sessionId: z.string().describe("Session ID"),
+    sessionId: z
+      .string()
+      .optional()
+      .describe(
+        "Session ID. If omitted, uses the most recent active session.",
+      ),
     category: z
       .enum([
         "file_change",
@@ -104,12 +128,63 @@ server.tool(
       .describe("Additional details or context"),
   },
   async (params) => {
-    const event = trackEvent(repo, params);
+    const id = resolveSessionId(params.sessionId);
+    const event = trackEvent(repo, { ...params, sessionId: id });
     return {
       content: [
         {
           type: "text",
           text: `Event tracked: [${event.category}] ${event.title}`,
+        },
+      ],
+    };
+  },
+);
+
+// ── Tool: get_active_session ──
+
+server.tool(
+  "get_active_session",
+  "Get the currently active (not ended) session. Useful to check if there's an ongoing session before starting a new one.",
+  {},
+  async () => {
+    const session = repo.getActiveSession();
+    if (!session) {
+      return {
+        content: [
+          { type: "text", text: "No active session. Use start_session to begin one." },
+        ],
+      };
+    }
+    const events = repo.getEvents(session.id);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Active session: ${session.id}\nProject: ${session.projectName}\nGoal: ${session.goal ?? "—"}\nStarted: ${session.startedAt}\nEvents: ${events.length}`,
+        },
+      ],
+    };
+  },
+);
+
+// ── Tool: delete_session ──
+
+server.tool(
+  "delete_session",
+  "Delete a session and all its events and summaries. Use with caution — this cannot be undone.",
+  {
+    sessionId: z.string().describe("Session ID to delete"),
+  },
+  async ({ sessionId }) => {
+    const deleted = repo.deleteSession(sessionId);
+    return {
+      content: [
+        {
+          type: "text",
+          text: deleted
+            ? `Session ${sessionId} and all its data deleted.`
+            : `Session ${sessionId} not found.`,
         },
       ],
     };
@@ -125,7 +200,7 @@ server.tool(
     sessionId: z
       .string()
       .optional()
-      .describe("Specific session ID to summarize"),
+      .describe("Specific session ID to summarize. If omitted with no date range, summarizes today."),
     since: z
       .string()
       .optional()
@@ -191,10 +266,10 @@ server.tool(
   },
 );
 
-// ── Tool: export ──
+// ── Tool: export_report ──
 
 server.tool(
-  "export",
+  "export_report",
   "Export a summary or standup report to markdown or JSON. Optionally writes to a file.",
   {
     type: z
@@ -269,15 +344,21 @@ server.tool(
   "import_git_commits",
   "Import git commits from a repository as events for a session.",
   {
-    sessionId: z.string().describe("Session ID to attach commits to"),
+    sessionId: z
+      .string()
+      .optional()
+      .describe(
+        "Session ID to attach commits to. If omitted, uses the active session.",
+      ),
     repoPath: z.string().describe("Path to the git repository"),
     since: z.string().optional().describe("Start date (ISO 8601)"),
     until: z.string().optional().describe("End date (ISO 8601)"),
   },
   async (params) => {
+    const id = resolveSessionId(params.sessionId);
     const count = importGitCommits(
       repo,
-      params.sessionId,
+      id,
       params.repoPath,
       params.since,
       params.until,
@@ -286,7 +367,7 @@ server.tool(
       content: [
         {
           type: "text",
-          text: `Imported ${count} git commit(s) for session ${params.sessionId}`,
+          text: `Imported ${count} git commit(s) for session ${id}`,
         },
       ],
     };
@@ -334,9 +415,9 @@ server.tool(
 
 server.tool(
   "search_sessions",
-  "Full-text search across all session events. Finds events by keyword.",
+  "Full-text search across all session events. Finds events by keyword (plain keywords work, no special syntax needed).",
   {
-    query: z.string().describe("Search query (supports FTS5 syntax)"),
+    query: z.string().describe("Search keywords"),
     limit: z.number().optional().describe("Max results. Default: 20"),
   },
   async (params) => {
